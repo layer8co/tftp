@@ -52,7 +52,7 @@ func main() {
 	server := tftp.TFTPServer{
 		Payload: pl,
 	}
-	log.Fatal(server.ListenAndServe("192.168.1.7"))
+	log.Fatal(server.ListenAndServe("192.168.1.7:69"))
 }
 
 ```
