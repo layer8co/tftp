@@ -6,7 +6,7 @@ TFTP Server utility in Golang.
 
 
 > [!IMPORTANT]
-> Currently only `octet` transfer mode is supported.
+> Currently only the `octet` transfer mode is supported.
 
 # Usage
 
