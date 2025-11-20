@@ -4,22 +4,33 @@ import (
 	"bytes"
 	"errors"
 	"io"
-	"log"
 	"net"
 	"os"
 	"time"
 )
 
+type Logger interface {
+	Printf(format string, v ...any)
+	Print(v ...any)
+	Println(v ...any)
+}
+
 type TFTPServer struct {
 	WriteAllowed bool
 	ReadAllowed  bool
-	WriteDir     string
-	Payload      []byte
-	Retries      uint8
-	Timeout      time.Duration
+	// Where to reside the written Files
+	WriteDir string
+	// The payload to serve
+	Payload []byte
+	// The maximum retry amount in repsonse to timeout. Needs to be at
+	// least 1.
+	Retries uint8
+
+	Timeout time.Duration
+
+	Log Logger
 }
 
-// Blocking function
 func (s TFTPServer) ListenAndServe(addr string) error {
 	conn, err := net.ListenPacket("udp", addr)
 	if err != nil {
@@ -61,7 +72,7 @@ func (s *TFTPServer) Serve(conn net.PacketConn) error {
 		err = rrq.UnmarshalBinary(buf)
 		if err == nil {
 			if !s.ReadAllowed {
-				data, _ := Err{Error: ErrIllegalOp, Message: "Read is not allowed"}.MarshalBinary()
+				data, _ := Err{Error: ErrIllegalOp, Message: "ReadReq is not allowed"}.MarshalBinary()
 				_, _ = conn.WriteTo(data, addr)
 			} else {
 				go s.handleRead(addr.String(), rrq)
@@ -72,7 +83,7 @@ func (s *TFTPServer) Serve(conn net.PacketConn) error {
 		err = wrq.UnmarshalBinary(buf)
 		if err == nil {
 			if !s.WriteAllowed {
-				data, _ := Err{Error: ErrIllegalOp, Message: "Write is not allowed"}.MarshalBinary()
+				data, _ := Err{Error: ErrIllegalOp, Message: "WriteReq is not allowed"}.MarshalBinary()
 				_, _ = conn.WriteTo(data, addr)
 			} else {
 				go s.handleWrite(addr.String(), wrq)
@@ -80,18 +91,18 @@ func (s *TFTPServer) Serve(conn net.PacketConn) error {
 			}
 		}
 
-		log.Printf("[%s] bad request: %v", addr, err)
+		s.Log.Printf("[%s] bad request: %v", addr, err)
 		continue
 	}
 }
 
 func (s TFTPServer) handleRead(clientAddr string, rrq ReadReq) {
-	log.Printf("[%s] requested read file: %s", clientAddr, rrq.Filename)
+	s.Log.Printf("[%s] requested read file: %s", clientAddr, rrq.Filename)
 
 	// Using random transfer identifier for each tftp session
 	conn, err := net.Dial("udp", clientAddr)
 	if err != nil {
-		log.Printf("[%s] dial: %v", clientAddr, err)
+		s.Log.Printf("[%s] dial: %v", clientAddr, err)
 		return
 	}
 	defer func() { _ = conn.Close() }()
@@ -107,14 +118,14 @@ NEXTPACKET:
 	for n := DatagramSize; n == DatagramSize; {
 		data, err := dataPkt.MarshalBinary()
 		if err != nil {
-			log.Printf("[%s] preparing data packet: %v", clientAddr, err)
+			s.Log.Printf("[%s] preparing data packet: %v", clientAddr, err)
 			return
 		}
 	RETRY:
 		for i := s.Retries; i > 0; i-- {
 			n, err = conn.Write(data)
 			if err != nil {
-				log.Printf("[%s] write: %v", clientAddr, err)
+				s.Log.Printf("[%s] write: %v", clientAddr, err)
 				return
 			}
 			// wait for client's Ack packet
@@ -126,7 +137,7 @@ NEXTPACKET:
 					continue RETRY
 				}
 
-				log.Printf("[%s] waiting for ACK: %v", clientAddr, err)
+				s.Log.Printf("[%s] waiting for ACK: %v", clientAddr, err)
 				return
 			}
 
@@ -138,28 +149,28 @@ NEXTPACKET:
 				}
 
 			case errPkt.UnmarshalBinary(buf) == nil:
-				log.Printf("[%s] received error: %v",
+				s.Log.Printf("[%s] received error: %v",
 					clientAddr, errPkt.Message)
 				return
 			default:
-				log.Printf("[%s] bad packet: %v", clientAddr, buf)
+				s.Log.Printf("[%s] bad packet: %v", clientAddr, buf)
 			}
 
 		}
-		log.Printf("[%s] exhausted retries", clientAddr)
+		s.Log.Printf("[%s] exhausted retries", clientAddr)
 		return
 	}
-	log.Printf("[%s] send %d blocks", clientAddr, dataPkt.Block)
+	s.Log.Printf("[%s] send %d blocks", clientAddr, dataPkt.Block)
 }
 
 func (s TFTPServer) handleWrite(clientAddr string, wrq WriteReq) {
-	log.Printf("[%s] Requested write file: %s", clientAddr, wrq.Filename)
+	s.Log.Printf("[%s] Requested write file: %s", clientAddr, wrq.Filename)
 
 	// Using random transfer identifier for each tftp session
 	conn, err := net.Dial("udp", clientAddr)
 
 	if err != nil {
-		log.Printf("[%s] dial: %v", clientAddr, err)
+		s.Log.Printf("[%s] dial: %v", clientAddr, err)
 		return
 	}
 	defer conn.Close()
@@ -174,42 +185,42 @@ func (s TFTPServer) handleWrite(clientAddr string, wrq WriteReq) {
 	// Initial Ack packet to WRQ
 	data, err := ackPkt.MarshalBinary()
 	if err != nil {
-		log.Printf("Can not marshal the ack packet: %s", err)
+		s.Log.Printf("Can not marshal the ack packet: %s", err)
 		return
 	}
 
 	_, err = conn.Write(data)
 
 	if err != nil {
-		log.Printf("[%s] ack: %v", clientAddr, err)
+		s.Log.Printf("[%s] ack: %v", clientAddr, err)
 		return
 	}
 
 	file, err := os.Create(wrq.Filename)
 	if err != nil {
-		log.Printf("[%s] CreateFile: %v", clientAddr, err)
+		s.Log.Printf("[%s] CreateFile: %v", clientAddr, err)
 		return
 	}
 
 	defer func() {
 		err = file.Close()
 		if err != nil {
-			log.Printf("Can not close the file: %s", err)
+			s.Log.Printf("Can not close the file: %s", err)
 		}
 	}()
 
 	// Recieve datagrams until the last one comes. last datagram is always less than 516 Bytes.
 	for n := DatagramSize; n == DatagramSize; {
 		n, err = conn.Read(buf)
-		log.Println(n)
+		s.Log.Println(n)
 		if err != nil {
-			log.Printf("Error when reading from connection: %s", err)
+			s.Log.Printf("Error when reading from connection: %s", err)
 			return
 		}
 
 		err = errPkt.UnmarshalBinary(buf)
 		if err == nil {
-			log.Printf("[%s] received error: %v",
+			s.Log.Printf("[%s] received error: %v",
 				clientAddr, errPkt.Message)
 			return
 		}
@@ -217,20 +228,20 @@ func (s TFTPServer) handleWrite(clientAddr string, wrq WriteReq) {
 		err = dataPkt.UnmarshalBinary(buf)
 
 		if err != nil {
-			log.Println(err)
+			s.Log.Println(err)
 			return
 		}
 
 		data, err := io.ReadAll(dataPkt.Payload)
 
 		if err != nil {
-			log.Fatalf("Error reading from reader: %v", err)
+			s.Log.Printf("Error when reading from the reader: %v", err)
 			return
 		}
 
 		_, err = file.Write(data[:n-4])
 		if err != nil {
-			log.Printf("can't write the buffer into disk: %s", err)
+			s.Log.Printf("can't write the buffer into disk: %s", err)
 			return
 		}
 
@@ -238,17 +249,17 @@ func (s TFTPServer) handleWrite(clientAddr string, wrq WriteReq) {
 		// Acknowledge the data packet
 		data, err = ackPkt.MarshalBinary()
 		if err != nil {
-			log.Printf("Can not marshal the ack packet: %s", err)
+			s.Log.Printf("Can not marshal the ack packet: %s", err)
 			return
 		}
 
 		_, err = conn.Write(data)
 
 		if err != nil {
-			log.Printf("[%s] ack: %v", clientAddr, err)
+			s.Log.Printf("[%s] ack: %v", clientAddr, err)
 			return
 		}
 	}
 	// Out of the loop means we recieved every legit datagram for this connection.
-	log.Printf("[%s] Recieved %d blocks of data. Written to the file %s", clientAddr, ackPkt.Block, file.Name())
+	s.Log.Printf("[%s] Recieved %d blocks of data. Written to the file %s", clientAddr, ackPkt.Block, file.Name())
 }
