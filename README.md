@@ -1,5 +1,5 @@
 # 🎿 TFTP Server
-TFTP Server utility in Golang.
+TFTP Server utility.
 
 - [x] RFC 1350: The TFTP Protocol
 - [ ] RFC 2347: TFTP Option Extension
@@ -40,8 +40,10 @@ $ sudo ./tftp -r -f gopher.png -l 10.0.0.220:69
 package main
 
 import (
+	"io"
 	"log"
 	"os"
+	"time"
 
 	"github.com/Layer8Collective/tftp"
 )
@@ -50,11 +52,16 @@ func main() {
 	pl, _ := os.ReadFile("gopher.png")
 
 	server := tftp.TFTPServer{
-		Payload: pl,
+		Payload:      pl,
+		WriteAllowed: true,
+		ReadAllowed:  true,
+		Retries:      3,
+		WriteDir:     "/tmp",
+		Timeout:      time.Minute,
+		Log:          log.New(io.Discard, "", log.Flags()),
 	}
-	log.Fatal(server.ListenAndServe("192.168.1.7:69"))
+	log.Fatal(server.ListenAndServe("10.0.0.169:69"))
 }
-
 ```
 
 
