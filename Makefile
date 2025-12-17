@@ -1,8 +1,8 @@
 run:
-	go run tftp/tftp.go --payload=./tftp/gopher.png
+	go run cmd/tftp.go -r -f ./cmd/gopher.png -l 127.0.0.1:2000
 
 writerun:
-	go run tftp/tftp.go --payload=./tftp/gopher.png --write
+	go run cmd/tftp.go -f ./cmd/gopher.png -w -r -l 127.0.0.1:2000
 
 
 test: 
