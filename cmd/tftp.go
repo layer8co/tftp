@@ -43,7 +43,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	s := tftp.TFTPServer{Payload: p, WriteAllowed: *writeEnabled, WriteDir: *writedir, ReadAllowed: *readEnabled, Log: log.Default()}
+	s := &tftp.TFTPServer{Payload: p, WriteAllowed: *writeEnabled, WriteDir: *writedir, ReadAllowed: *readEnabled, Log: log.Default()}
 	log.Println("🚀 TFTP Server listening on: ", *address)
 	log.Fatal(s.ListenAndServe(*address))
 }

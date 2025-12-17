@@ -32,7 +32,7 @@ type TFTPServer struct {
 	Log Logger
 }
 
-func (s TFTPServer) ListenAndServe(addr string) error {
+func (s *TFTPServer) ListenAndServe(addr string) error {
 	conn, err := net.ListenPacket("udp", addr)
 	if err != nil {
 		return err
@@ -101,7 +101,7 @@ func (s *TFTPServer) Serve(conn net.PacketConn) error {
 	}
 }
 
-func (s TFTPServer) handleRead(clientAddr string, rrq ReadReq) {
+func (s *TFTPServer) handleRead(clientAddr string, rrq ReadReq) {
 	s.Log.Printf("[%s] requested read file: %s", clientAddr, rrq.Filename)
 
 	// Using random transfer identifier for each tftp session
@@ -168,7 +168,7 @@ NEXTPACKET:
 	s.Log.Printf("[%s] send %d blocks", clientAddr, dataPkt.Block)
 }
 
-func (s TFTPServer) handleWrite(clientAddr string, wrq WriteReq) {
+func (s *TFTPServer) handleWrite(clientAddr string, wrq WriteReq) {
 	s.Log.Printf("[%s] Requested write file: %s", clientAddr, wrq.Filename)
 
 	// Using random transfer identifier for each tftp session
