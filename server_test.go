@@ -26,6 +26,7 @@ func TestReadServer(t *testing.T) {
 	tftpServer := TFTPServer{
 		Payload:      payload1,
 		WriteAllowed: false,
+		ReadAllowed:  true,
 		Timeout:      5 * time.Second,
 	}
 

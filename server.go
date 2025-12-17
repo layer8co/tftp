@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"log"
 	"net"
 	"os"
 	"time"
@@ -58,6 +59,10 @@ func (s *TFTPServer) Serve(conn net.PacketConn) error {
 
 	if s.Timeout == 0 {
 		s.Timeout = 4 * time.Second
+	}
+
+	if s.Log == nil {
+		s.Log = log.New(io.Discard, "", 0)
 	}
 
 	var rrq ReadReq
