@@ -1,4 +1,10 @@
 {
   "extends": ["config:recommended"],
-  "enabledManagers": ["gomod"]
+  "enabledManagers": ["gomod"],
+  "packageRules": [
+    {
+      "matchDatasources": ["golang-version"],
+      "rangeStrategy": "bump"
+    }
+  ]
 }
